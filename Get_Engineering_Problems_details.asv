@@ -1,0 +1,295 @@
+%% Copyright (c) 2020, Mehdi Ghasri
+%% To cooperate in articles, send an email to the following address
+% (with Subject=CO Article):
+% Email: Eng.mehdighasri@gmail.com
+
+
+%% Copyright (c) 2019, Mehdi Ghasri
+% All rights reserved. 
+% Redistribution and use in source and binary forms, with or without
+% modification, are permitted provided that the following conditions are met:
+% 
+% * Redistributions of source code must retain the above copyright notice, this
+%   list of conditions and the following disclaimer.
+% 
+% * Redistributions in binary form must reproduce the above copyright notice,
+%   this list of conditions and the following disclaimer in the documentation
+%   and/or other materials provided with the distribution
+% * Neither the name of IUPUI nor the names of its
+%   contributors may be used to endorse or promote products derived from this
+%   software without specific prior written permission.
+% 
+% THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+% AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+% IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+% DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE
+% FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+% DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+% SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+% CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+% OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+function [lb,ub,D,out] = Get_Engineering_Problems_details(F)
+
+
+switch F
+    case 'PressureVesselDesign'
+        out = @PressureVesselDesign;
+        D=4;
+        lb=[0.0625 0.0625 10 10];
+        ub=[99*0.0625 99*0.0625 200 200];
+    case 'StringDesign'
+        out = @StringDesign;
+        D=3;
+        lb=[0.05 0.25 2];
+        ub=[2 1.3 15];
+    case 'ThreeBarTruss'
+        out = @ThreeBarTruss;
+        D=2;
+        lb=[0 0];
+        ub=[1 1];
+    case 'GearTrainDesign'
+        out = @GearTrainDesign;
+        D=4;
+        lb=[12 12 12 12];
+        ub=[60 60 60 60];
+    case 'CantileverBeam'
+        out = @CantileverBeam;
+        D=5;
+        lb=[0.01 0.01 0.01 0.01 0.01];
+        ub=[100 100 100 100 100];
+    case 'WeldedBeam'
+        out = @WeldedBeam;
+        D=4;
+        lb=[0.1 0.1 0.1 0.1 ];
+        ub=[2 10 10 2 ];
+    case 'SpeedReducerDesign'
+        out = @SpeedReducerDesign;
+        D=7;
+        lb=[2.6 0.7 17 7.3 7.3 2.9 5];
+        ub=[3.6 0.8 28 8.3 8.3 3.9 5.5];
+end
+end
+
+function out=PressureVesselDesign(x)
+
+y1=x(:,1);%Ts
+y2=x(:,2);%Th
+y3=x(:,3);%R
+y4=x(:,4);%L
+%%% opt
+fx=0.6224.*y1.*y3.*y4+...
+    1.7781.*y2.*y3.^2+...
+    3.1661.*y1.^2.*y4+...
+    19.84.*y1.^2.*y3;
+%%% const
+g(:,1)=-y1+0.0193.*y3;
+g(:,2)=-y2+0.0095.*y3;
+g(:,3)=-pi.*y3.^2.*y4...
+    -(4/3).*pi.*y3.^3 ...
+    +1296000;
+g(:,4)=y4-240;
+
+%%% Penalty
+pp=10^9;
+for i=1:size(g,1)
+    for j=1:size(g,2)
+        if g(i,j)>0
+            penalty(i,j)=pp.*g(i,j);
+        else
+            penalty(i,j)=0;
+        end
+    end
+end
+
+out=fx+sum(penalty,2);
+
+
+end
+
+function out=WeldedBeam(x)
+y1=x(:,1);%W
+y2=x(:,2);%L
+y3=x(:,3);%d
+y4=x(:,4);%h
+%%% opt
+fx=(y2.*1.1047.*y1.^2)+(0.04811.*y3.*y4.*(14+y2));
+%%% const
+sigm=504000./(y4.*y3.^2);
+q=6000*(14+(y2./2));
+D=0.5.*((y2.^2)+(y1+y3).^2).^0.5;
+j=2*sqrt(2).*y1.*y2.*((y2.^2./6)+((y1+y3).^2)./2);
+delta=65856./(30000.*y4.*y3.^3);
+beta=(q.*D)./j;
+alfa=6000./(sqrt(2).*y1.*y2);
+toa=(alfa.^2+beta.^2+(alfa.*beta.*y2)./D).^0.5;
+p=(0.61423*10^6).*((y3.*y4.^3)./6).*(1-(y3.*sqrt(y4.^6.*30/48))./28);
+
+g(:,1)=toa-13600;
+g(:,2)=sigm-30000;
+g(:,3)=y1-y4;
+g(:,4)=(0.1047.*y1.^2.*y2)+(0.04811.*y4.*y3.*(14+y2))-5;
+g(:,5)=0.125-y1;
+g(:,6)=delta-0.25;
+g(:,7)=6000-p;
+pp=10^9;
+for i=1:size(g,1)
+    for j=1:size(g,2)
+        if g(i,j)>0
+            penalty(i,j)=pp.*g(i,j);
+        else
+            penalty(i,j)=0;
+        end
+    end
+end
+
+out=fx+sum(penalty,2);
+
+end
+
+function out=StringDesign(x)
+
+y1=x(:,1);%W
+y2=x(:,2);%d
+y3=x(:,3);%N
+%%% opt
+fx=(y3+2).*y2.*y1.^2;
+%%% const
+g(:,1)=1-(y2.^3.*y3)./(71785.*y1.^4);
+g(:,2)=(4.*y2.^2-y1.*y2)./...
+    (12566.*(y2.*y1.^3-y1.^4))...
+    +(1./(5108.*y1.^2))-1;
+g(:,3)=1-(140.45.*y1./(y2.^2.*y3));
+g(:,4)=(y1+y2)./1.5-1;
+%%% Penalty
+pp=10^9;
+for i=1:size(g,1)
+    for j=1:size(g,2)
+        if g(i,j)>0
+            penalty(i,j)=pp.*g(i,j);
+        else
+            penalty(i,j)=0;
+        end
+    end
+end
+
+out=fx+sum(penalty,2);
+
+end
+function out=ThreeBarTruss(x)
+
+A1=x(:,1);
+A2=x(:,2);
+%%%opt
+fx=(2*sqrt(2).*A1+A2).*100;
+%%% const
+g(:,1)=2.*(sqrt(2).*A1+A2)./...
+    (sqrt(2).*A1.^2+2.*A1.*A2)-2;
+g(:,2)=2.*A2./(sqrt(2).*A1.^2+...
+    2.*A1.*A2)-2;
+g(:,3)=2./(A1+sqrt(2).*A2)-2;
+%%% Penalty
+pp=10^9;
+for i=1:size(g,1)
+    for j=1:size(g,2)
+        if g(i,j)>0
+            penalty(i,j)=pp.*g(i,j);
+        else
+            penalty(i,j)=0;
+        end
+    end
+end
+
+out=fx+sum(penalty,2);
+
+end
+
+function out=GearTrainDesign(x)
+
+y1=x(:,1);%A
+y2=x(:,2);%B
+y3=x(:,3);%C
+y4=x(:,4);%D
+%%% opt
+fx=((1/6.931)-((y1.*y2)./(y3.*y4))).^2;
+out=fx;
+end
+
+function out=CantileverBeam(x)
+y1=x(:,1);%1
+y2=x(:,2);%2
+y3=x(:,3);%3
+y4=x(:,4);%4
+y5=x(:,5);%5
+%%% opt
+fx=0.0624.*(y1+y2+y3+y4+y5);
+%%%% const
+g(:,1)=(61./y1.^3)+(37./y2.^3)+(19./y3.^3)+(7./y4.^3)+(1./y5.^3)-1;
+%%% Penalty
+pp=10^9;
+for i=1:size(g,1)
+    for j=1:size(g,2)
+        if g(i,j)>0
+            penalty(i,j)=pp.*g(i,j);
+        else
+            penalty(i,j)=0;
+        end
+    end
+end
+
+out=fx+sum(penalty,2);
+
+end
+
+function out = SpeedReducerDesign(x)
+
+% Değişkenler
+y1 = x(:, 1); % Dış Çap (m)
+y2 = x(:, 2); % Dişli Sayısı
+y3 = x(:, 3); % Dişli Modülü (m)
+y4 = x(:, 4); % Çalışma Süresi (s)
+y5 = x(:, 5); % Ekstra Değişken (uygun değerlerle doldurulmalı)
+y6 = x(:, 6); % Ekstra Değişken (uygun değerlerle doldurulmalı)
+y7 = x(:, 7); % Ekstra Değişken (uygun değerlerle doldurulmalı)
+
+% Amaç Fonksiyonu
+fx = 0.7854 * y1 .* y2.^2 .* (3.3333 * y3.^2 + 14.9334 * y3 - 43.0934) ... % Dişli sayısı ve modül etkisi
+     - 1.508 * y1 .* (y6.^2 + y7.^2) ... % x6 ve x7 için uygun değerler olmalı
+     + 7.4777 * (y6.^3 + y7.^3) ... % x6 ve x7 için uygun değerler olmalı
+     + 0.7854 * (y4 .* y6.^2 + y5 .* y7.^2); % x5 ve x7 için uygun değerler olmalı
+
+% Kısıtlamalar
+g(:, 1) = (27 ./ (y1 .* y2.^2 .* y3)) - 1;            % g1(x) = (27/(x1*x2^2*x3)) - 1 <= 0
+g(:, 2) = (397.5 ./ (y1 .* y2.^2 .* y3.^2)) - 1;     % g2(x) = (397.5/(x1*x2^2*x3^2)) - 1 <= 0
+g(:, 3) = (1.93 * y4.^3 ./ (y2 .*  y3.* y6.^4)) - 1;  % g3(x) = (1.93*x4^3/(x2*x3^2*x6^4)) - 1 <= 0
+g(:, 4) = (1.93 * y5.^3 ./ (y2 .* y3 .* y7.^4)) - 1;  % g4(x) = (1.93*x5^3/(x2*x3^2*x7^4)) - 1 <= 0
+g(:, 5) = (1 ./ (110 * (y6).^3) .* sqrt((745 * y4 ./ (y2 .* y3)).^2 + 16.9 * 10^6)) - 1; % g5(x)
+g(:, 6) = (1 ./ (85 * (y7).^3) .* sqrt((745 * y4 .* y2 .* y3).^2 + 157.5 * 10^6)) - 1; % g6(x)
+g(:, 7) = y2 .* y3 .* y4 - 1;                         % g7(x) = x2*x3*x4 - 1 <= 0
+g(:, 8) = 5 * y2 .* y1 - 1;                           % g8(x) = 5*x2*x1 - 1 <= 0
+g(:, 9) = y1.^12 .* y2 - 1;                           % g9(x) = x1^12*x2 - 1 <= 0
+g(:, 10) = 1.5 * y6 + 1.9 * y4 - 1;                   % g10 = 1.5*x6 + 1.9*x4 - 1 <= 0
+g(:, 11) = 1.1 * y7 + 1.9 * y5 - 1;                   % g11 = 1.1*x7 + 1.9*x5 - 1 <= 0
+g(:, 12) = -y1 + 0.02 * y2;                           % Dış çap kısıtlaması
+g(:, 13) = -y2 + 3;                                   % Dişli sayısı kısıtlaması
+g(:, 14) = -pi * y3.^2 * y4 ...                       % Hacim kısıtlaması
+         - (4/3) * pi * y3.^3 ...
+         + 50000; 
+g(:, 15) = y4 - 120;                                 % Çalışma süresi kısıtlaması
+
+% Cezalandırma
+pp = 1e6; % Cezalandırma katsayısı
+penalty = zeros(size(g)); % Cezalandırma matrisini sıfırlama
+for i = 1:size(g, 1)
+    for j = 1:size(g, 2)
+        if g(i, j) > 0
+            penalty(i, j) = pp .* g(i, j);
+        else
+            penalty(i, j) = 0;
+        end
+    end
+end
+
+out = fx + sum(penalty, 2); % Amaç fonksiyonu + ceza toplamı
+
+end
